@@ -21,6 +21,45 @@ pp.flowParseTypeInitialiser = function (tok, allowLeadingPipeOrAnd) {
   return type;
 };
 
+pp.flowParsePredicate = function() {
+  let node = this.startNode();
+  let moduloLoc = this.state.startLoc;
+  let moduloPos = this.state.start;
+  this.expect(tt.modulo);
+  let checksLoc = this.state.startLoc;
+  this.expectContextual("checks");
+  // Force '%' and 'checks' to be adjacent
+  if (moduloLoc.line !== checksLoc.line || moduloLoc.column !== checksLoc.column - 1) {
+    this.raise(moduloPos, "Unexpected token");
+  }
+  if (this.match(tt.parenL)) {
+    this.next();
+    node.expression = this.parseExpression();
+    this.expect(tt.parenR);
+    return this.finishNode(node, "DeclaredPredicate");
+  } else {
+    return this.finishNode(node, "InferredPredicate");
+  }
+};
+
+pp.flowParseTypeAndPredicateInitialiser = function () {
+  let oldInType = this.state.inType;
+  this.state.inType = true;
+  this.expect(tt.colon);
+  let type = null;
+  let predicate = null;
+  if (this.match(tt.modulo)) {
+    predicate = this.flowParsePredicate();
+  } else {
+    type = this.flowParseType();
+    if (this.match(tt.modulo)) {
+      predicate = this.flowParsePredicate();
+    }
+  }
+  this.state.inType = oldInType;
+  return [type, predicate];
+};
+
 pp.flowParseDeclareClass = function (node) {
   this.next();
   this.flowParseInterfaceish(node, true);
@@ -46,7 +85,7 @@ pp.flowParseDeclareFunction = function (node) {
   typeNode.params = tmp.params;
   typeNode.rest = tmp.rest;
   this.expect(tt.parenR);
-  typeNode.returnType = this.flowParseTypeInitialiser();
+  [typeNode.returnType, node.predicate] = this.flowParseTypeAndPredicateInitialiser();
 
   typeContainer.typeAnnotation = this.finishNode(typeNode, "FunctionTypeAnnotation");
   id.typeAnnotation = this.finishNode(typeContainer, "TypeAnnotation");
@@ -674,6 +713,13 @@ pp.flowParseTypeAnnotation = function () {
   return this.finishNode(node, "TypeAnnotation");
 };
 
+pp.flowParseTypeAndPredicateAnnotation = function () {
+  let node = this.startNode();
+  let predicate;
+  [node.typeAnnotation, predicate] = this.flowParseTypeAndPredicateInitialiser();
+  return [this.finishNode(node, "TypeAnnotation"), predicate];
+};
+
 pp.flowParseTypeAnnotatableIdentifier = function (requireTypeAnnotation, canBeOptionalParam) {
 
   let ident = this.parseIdentifier();
@@ -715,7 +761,7 @@ export default function (instance) {
       if (this.match(tt.colon) && !allowExpression) {
         // if allowExpression is true then we're parsing an arrow function and if
         // there's a return type then it's been handled elsewhere
-        node.returnType = this.flowParseTypeAnnotation();
+        [node.returnType, node.predicate] = this.flowParseTypeAndPredicateAnnotation();
       }
 
       return inner.call(this, node, allowExpression);
@@ -1161,10 +1207,11 @@ export default function (instance) {
       if (this.match(tt.colon)) {
         let state = this.state.clone();
         try {
-          let returnType = this.flowParseTypeAnnotation();
+          let [returnType, predicate] = this.flowParseTypeAndPredicateAnnotation();
           if (!this.match(tt.arrow)) this.unexpected();
           // assign after it is clear it is an arrow
           node.returnType = returnType;
+          node.predicate = predicate;
         } catch (err) {
           if (err instanceof SyntaxError) {
             this.state = state;
