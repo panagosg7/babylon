@@ -30,7 +30,7 @@ pp.flowParsePredicate = function() {
   this.expectContextual("checks");
   // Force '%' and 'checks' to be adjacent
   if (moduloLoc.line !== checksLoc.line || moduloLoc.column !== checksLoc.column - 1) {
-    this.raise(moduloPos, "Unexpected token");
+    this.unexpected(moduloPos);
   }
   if (this.match(tt.parenL)) {
     this.next();
@@ -49,14 +49,15 @@ pp.flowParseTypeAndPredicateInitialiser = function () {
   let type = null;
   let predicate = null;
   if (this.match(tt.modulo)) {
+    this.state.inType = oldInType;
     predicate = this.flowParsePredicate();
   } else {
     type = this.flowParseType();
+    this.state.inType = oldInType;
     if (this.match(tt.modulo)) {
       predicate = this.flowParsePredicate();
     }
   }
-  this.state.inType = oldInType;
   return [type, predicate];
 };
 
