@@ -80,9 +80,10 @@ pp.flowParseDeclareFunction = function (node) {
   typeNode.params = tmp.params;
   typeNode.rest = tmp.rest;
   this.expect(tt.parenR);
-  [typeNode.returnType, node.predicate] = this.flowParseTypeAndPredicateInitialiser();
-
+  let predicate = null;
+  [typeNode.returnType, predicate] = this.flowParseTypeAndPredicateInitialiser();
   typeContainer.typeAnnotation = this.finishNode(typeNode, "FunctionTypeAnnotation");
+  typeContainer.predicate = predicate;
   id.typeAnnotation = this.finishNode(typeContainer, "TypeAnnotation");
 
   this.finishNode(id, id.type);
@@ -799,10 +800,8 @@ pp.flowParseTypeAnnotation = function () {
 
 pp.flowParseTypeAndPredicateAnnotation = function () {
   const node = this.startNode();
-  const typeAnnotationAndPredicate = this.flowParseTypeAndPredicateInitialiser();
-  node.typeAnnotation = typeAnnotationAndPredicate[0];
-  const predicate = typeAnnotationAndPredicate[1];
-  return [this.finishNode(node, "TypeAnnotation"), predicate];
+  [node.typeAnnotation, node.predicate] = this.flowParseTypeAndPredicateInitialiser();
+  return this.finishNode(node, "TypeAnnotation");
 };
 
 pp.flowParseTypeAnnotatableIdentifier = function () {
@@ -845,7 +844,7 @@ export default function (instance) {
       if (this.match(tt.colon) && !allowExpression) {
         // if allowExpression is true then we're parsing an arrow function and if
         // there's a return type then it's been handled elsewhere
-        [node.returnType, node.predicate] = this.flowParseTypeAndPredicateAnnotation();
+        node.returnType = this.flowParseTypeAndPredicateAnnotation();
       }
 
       return inner.call(this, node, allowExpression);
@@ -1387,16 +1386,13 @@ export default function (instance) {
         try {
           const oldNoAnonFunctionType = this.state.noAnonFunctionType;
           this.state.noAnonFunctionType = true;
-          // const returnType = this.flowParseTypeAnnotation();
-          const [returnType, predicate] = this.flowParseTypeAndPredicateAnnotation();
-
+          const returnType = this.flowParseTypeAndPredicateAnnotation();
           this.state.noAnonFunctionType = oldNoAnonFunctionType;
 
           if (this.canInsertSemicolon()) this.unexpected();
           if (!this.match(tt.arrow)) this.unexpected();
           // assign after it is clear it is an arrow
           node.returnType = returnType;
-          node.predicate = predicate;
         } catch (err) {
           if (err instanceof SyntaxError) {
             this.state = state;

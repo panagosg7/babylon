@@ -591,8 +591,7 @@
               }
             }
           }
-        },
-        "predicate": null
+        }
       }
     ],
     "directives": []
