@@ -25,10 +25,9 @@ pp.flowParsePredicate = function() {
   this.expectContextual("checks");
   // Force '%' and 'checks' to be adjacent
   if (moduloLoc.line !== checksLoc.line || moduloLoc.column !== checksLoc.column - 1) {
-    this.unexpected(moduloPos);
+    this.raise(moduloPos, "Spaces between ´%´ and ´checks´ are not allowed here.");
   }
-  if (this.match(tt.parenL)) {
-    this.next();
+  if (this.eat(tt.parenL)) {
     node.expression = this.parseExpression();
     this.expect(tt.parenR);
     return this.finishNode(node, "DeclaredPredicate");
